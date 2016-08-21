@@ -88,6 +88,7 @@ public class AddressBook {
     private static final String MESSAGE_USING_DEFAULT_FILE = "Using default storage file : " + DEFAULT_STORAGE_FILEPATH;
 
     // These are the prefix strings to define the data type of a command parameter
+    private static final String PERSON_DATA_PREFIX_NAME = "n/";
     private static final String PERSON_DATA_PREFIX_PHONE = "p/";
     private static final String PERSON_DATA_PREFIX_EMAIL = "e/";
 
@@ -103,14 +104,23 @@ public class AddressBook {
 
     private static final String COMMAND_FIND_WORD = "find";
     private static final String COMMAND_FIND_DESC = "Finds all persons whose names contain any of the specified "
-                                        + "keywords (case-sensitive) and displays them as a list with index numbers.";
+                                        + "keywords (case-insensitive) and displays them as a list with index numbers.";
     private static final String COMMAND_FIND_PARAMETERS = "KEYWORD [MORE_KEYWORDS]";
     private static final String COMMAND_FIND_EXAMPLE = COMMAND_FIND_WORD + " alice bob charlie";
 
     private static final String COMMAND_LIST_WORD = "list";
     private static final String COMMAND_LIST_DESC = "Displays all persons as a list with index numbers.";
     private static final String COMMAND_LIST_EXAMPLE = COMMAND_LIST_WORD;
-
+    
+    private static final String COMMAND_EDIT_WORD = "edit";
+    private static final String COMMAND_EDIT_DESC = "Edits zero or more properties of a contact in the address book by "
+    									+ "taking in a name (should be in format of address book).";
+    private static final String COMMAND_EDIT_PARAMETERS = "NAME " 
+    													+ PERSON_DATA_PREFIX_NAME + "NAME "
+    													+ PERSON_DATA_PREFIX_PHONE + "PHONE "
+    													+ PERSON_DATA_PREFIX_EMAIL + "EMAIL";
+    private static final String COMMAND_EDIT_EXAMPLE = COMMAND_EDIT_WORD + " John Doe n/John p/123456 e/john@gmail.com";
+    
     private static final String COMMAND_DELETE_WORD = "delete";
     private static final String COMMAND_DELETE_DESC = "Deletes a person identified by the index number used in "
                                                     + "the last find/list call.";
@@ -356,6 +366,8 @@ public class AddressBook {
             return executeFindPersons(commandArgs);
         case COMMAND_LIST_WORD:
             return executeListAllPersonsInAddressBook();
+        case COMMAND_EDIT_WORD:
+        	return executeEditPerson(commandArgs);
         case COMMAND_DELETE_WORD:
             return executeDeletePerson(commandArgs);
         case COMMAND_CLEAR_WORD:
@@ -457,7 +469,9 @@ public class AddressBook {
     	ArrayList<String> splitPersons = splitByWhitespace(findPersonCommandArgs.trim());
     	for (int count=0; count<splitPersons.size(); count++) {
     		String person = splitPersons.get(count);
-    		makeStringsCaseInsensitive(splitPersons, count, person);  
+    		String newString = makeStringCaseInsensitive(person);  
+    		splitPersons.remove(count);
+			splitPersons.add(count, newString);
     	}   	
     	return new HashSet<>(splitPersons);
     }
@@ -466,24 +480,20 @@ public class AddressBook {
      * Changes all names input by users to the format added to the address book, ie first letter is capitalized 
      * and the rest are lower case.
      * 
-     * @param splitPersons
-     * @param count
      * @param person
      */
-	private static void makeStringsCaseInsensitive(ArrayList<String> splitPersons, int count, String person) {
+	private static String makeStringCaseInsensitive(String person) {
 		String lowerCaseAll = person.toLowerCase();
+		String wantedString = "";
 		if  (person.length() == 1) {
-			String firstCharUpperCase = lowerCaseAll.toUpperCase();
-			splitPersons.remove(count);
-			splitPersons.add(count, firstCharUpperCase);
+			wantedString = lowerCaseAll.toUpperCase();
 		}
 		else if (person.length() > 1) {
 			String firstCharUpperCase = lowerCaseAll.substring(0, 1).toUpperCase();
 			lowerCaseAll = lowerCaseAll.substring(1);
-			String wantedString = firstCharUpperCase + lowerCaseAll;
-			splitPersons.remove(count);
-			splitPersons.add(count, wantedString);
+			wantedString = firstCharUpperCase + lowerCaseAll;
 		}
+		return wantedString;
 	}
 
     /**
@@ -587,6 +597,79 @@ public class AddressBook {
         ArrayList<HashMap<PersonProperty, String>> toBeDisplayed = getAllPersonsInAddressBook();
         showToUser(toBeDisplayed);
         return getMessageForPersonsDisplayedSummary(toBeDisplayed);
+    }
+    
+    /**
+     * Edits the properties of a contact in the address book
+     * 
+     * @param commandArgs
+     * @return feedback display message for the operation result
+     */
+    private static String executeEditPerson(String commandArgs){
+    	final Optional<HashMap<PersonProperty, String>> decodeResult = decodeEditPersonFromString(commandArgs);
+
+        // checks if args are valid (decode result will not be present if the person is invalid)
+        if (!decodeResult.isPresent()) {
+            return getMessageForInvalidCommandInput(COMMAND_EDIT_WORD, getUsageInfoForEditCommand());
+        }
+
+        // add the person as specified
+        final HashMap<PersonProperty, String> personToAdd = decodeResult.get();
+        addPersonToAddressBook(personToAdd);
+        return getMessageForSuccessfulEditPerson(personToAdd);
+    }
+    
+    /**
+     * Decodes a person from it's supposed string representation.
+     *
+     * @param encoded string to be decoded
+     * @return if cannot decode: empty Optional
+     *         else: Optional containing decoded person
+     */
+    private static Optional<HashMap<PersonProperty, String>> decodeEditPersonFromString(String encoded) {
+    	if (!isEditPersonDataExtractableFrom(encoded)) {
+            return Optional.empty();
+        }
+    	final String matchAnyPersonDataPrefix = PERSON_DATA_PREFIX_NAME + '|' + PERSON_DATA_PREFIX_PHONE + '|' + PERSON_DATA_PREFIX_EMAIL;
+        final String[] splitArgs = encoded.trim().split(matchAnyPersonDataPrefix);
+        String name = splitArgs[0].replaceAll("\\s+", "");
+        String changeName = makeStringCaseInsensitive(splitArgs[1].replaceAll("\\s+", ""));
+        String phone = splitArgs[2].replaceAll("\\s+", "");
+        String email = splitArgs[3].replaceAll("\\s+", "");
+        boolean seen = false;
+        for (int i=0; i<ALL_PERSONS.size(); i++) {
+        	if (name.equals(ALL_PERSONS.get(i).get(PersonProperty.NAME))){
+        		if (changeName.equals("nill")) {
+        			changeName = name;
+        		}
+        		if (phone.equals("nill")) {
+        			phone = ALL_PERSONS.get(i).get(PersonProperty.PHONE);
+        		}
+        		if (email.equals("nill")) {
+        			email = ALL_PERSONS.get(i).get(PersonProperty.EMAIL);
+        		}
+        		deletePersonFromAddressBook(ALL_PERSONS.get(i));
+        		seen = true;
+        		break;
+        	}
+        }
+        final HashMap<PersonProperty, String> decodedPerson = makePersonFromData(
+                changeName, phone, email);
+        
+     // check that the constructed person is valid
+        return seen ? Optional.of(decodedPerson) : Optional.empty();
+    }
+    
+    /**
+     * Constructs a feedback message for a successful add person command execution.
+     *
+     * @see #executeAddPerson(String)
+     * @param addedPerson person who was successfully added
+     * @return successful add person feedback message
+     */
+    private static String getMessageForSuccessfulEditPerson(HashMap<PersonProperty, String> addedPerson) {
+        return String.format(MESSAGE_ADDED,
+                getNameFromPerson(addedPerson), getPhoneFromPerson(addedPerson), getEmailFromPerson(addedPerson));
     }
 
     /*
@@ -814,7 +897,13 @@ public class AddressBook {
     	}
         savePersonsToFile(getAllPersonsInAddressBook(), storageFilePath);
     }
-
+    /**
+     * Sorts the address book so that it is always kept in alphabetical order.
+     * 
+     * @param person
+     * @param isAdded
+     * @return
+     */
 	private static boolean sortingContacts(HashMap<PersonProperty, String> person, boolean isAdded) {
 		for (int i=0; i<ALL_PERSONS.size(); i++) {
     		String currName = ALL_PERSONS.get(i).get(PersonProperty.NAME);
@@ -1000,6 +1089,23 @@ public class AddressBook {
                 && !splitArgs[1].isEmpty()
                 && !splitArgs[2].isEmpty();
     }
+    
+    /**
+     * Checks whether person data (email, name, phone etc) can be extracted from the argument string.
+     * Format is [name] n/[name/null] p/[phone/null] e/[email/null], phone and email positions can be swapped.
+     *
+     * @param personData person string representation
+     * @return whether format of add command arguments allows parsing into individual arguments
+     */
+    private static boolean isEditPersonDataExtractableFrom(String personData) {
+        final String matchAnyPersonDataPrefix = PERSON_DATA_PREFIX_NAME + '|' + PERSON_DATA_PREFIX_PHONE + '|' + PERSON_DATA_PREFIX_EMAIL;
+        final String[] splitArgs = personData.trim().split(matchAnyPersonDataPrefix);
+        return splitArgs.length == 4 // 4 arguments
+                && !splitArgs[0].isEmpty() // non-empty arguments
+                && !splitArgs[1].isEmpty()
+                && !splitArgs[2].isEmpty()
+                && !splitArgs[3].isEmpty();
+    }
 
     /**
      * Extracts substring representing person name from person string representation
@@ -1015,7 +1121,9 @@ public class AddressBook {
         ArrayList<String> tempArrayForFormatting = splitByWhitespace(encoded.substring(0, indexOfFirstPrefix).trim());
         for (int i=0; i<tempArrayForFormatting.size(); i++) {
         	String name = tempArrayForFormatting.get(i);
-        	makeStringsCaseInsensitive(tempArrayForFormatting, i, name);
+        	String newString = makeStringCaseInsensitive(name);
+        	tempArrayForFormatting.remove(i);
+        	tempArrayForFormatting.add(i, newString);
         }
         String newName = tempArrayForFormatting.get(0);
         for (int j=1; j<tempArrayForFormatting.size(); j++) {
@@ -1136,6 +1244,7 @@ public class AddressBook {
         return getUsageInfoForAddCommand() + LS
                 + getUsageInfoForFindCommand() + LS
                 + getUsageInfoForViewCommand() + LS
+                + getUsageInfoForEditCommand() + LS
                 + getUsageInfoForDeleteCommand() + LS
                 + getUsageInfoForClearCommand() + LS
                 + getUsageInfoForExitCommand() + LS
@@ -1162,6 +1271,16 @@ public class AddressBook {
         return String.format(MESSAGE_COMMAND_HELP, COMMAND_FIND_WORD, COMMAND_FIND_DESC) + LS
                 + String.format(MESSAGE_COMMAND_HELP_PARAMETERS, COMMAND_FIND_PARAMETERS) + LS
                 + String.format(MESSAGE_COMMAND_HELP_EXAMPLE, COMMAND_FIND_EXAMPLE) + LS;
+    }
+    /**
+     * Builds string for showing 'edit' command usage instruction
+     *
+     * @return  'edit' command usage instruction
+     */
+    private static String getUsageInfoForEditCommand() {
+        return String.format(MESSAGE_COMMAND_HELP, COMMAND_EDIT_WORD, COMMAND_EDIT_DESC) + LS
+                + String.format(MESSAGE_COMMAND_HELP_PARAMETERS, COMMAND_EDIT_PARAMETERS) + LS
+                + String.format(MESSAGE_COMMAND_HELP_EXAMPLE, COMMAND_EDIT_EXAMPLE) + LS;
     }
 
     /**
