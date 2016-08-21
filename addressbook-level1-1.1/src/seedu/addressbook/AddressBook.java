@@ -807,9 +807,26 @@ public class AddressBook {
      * @param person to add
      */
     private static void addPersonToAddressBook(HashMap<PersonProperty, String> person) {
-        ALL_PERSONS.add(person);
+    	boolean isAdded = false;
+    	isAdded = sortingContacts(person, isAdded);
+    	if (!isAdded){
+    		ALL_PERSONS.add(person);
+    	}
         savePersonsToFile(getAllPersonsInAddressBook(), storageFilePath);
     }
+
+	private static boolean sortingContacts(HashMap<PersonProperty, String> person, boolean isAdded) {
+		for (int i=0; i<ALL_PERSONS.size(); i++) {
+    		String currName = ALL_PERSONS.get(i).get(PersonProperty.NAME);
+    		int compare = person.get(PersonProperty.NAME).compareTo(currName);
+    		if (compare < 0) {
+    			ALL_PERSONS.add(i, person);
+    			isAdded = true;
+    			break;
+    		}
+    	}
+		return isAdded;
+	}
 
     /**
      * Deletes the specified person from the addressbook if it is inside. Saves any changes to storage file.
