@@ -454,8 +454,37 @@ public class AddressBook {
      * @return set of keywords as specified by args
      */
     private static Set<String> extractKeywordsFromFindPersonArgs(String findPersonCommandArgs) {
-        return new HashSet<>(splitByWhitespace(findPersonCommandArgs.trim()));
+    	ArrayList<String> splitPersons = splitByWhitespace(findPersonCommandArgs.trim());
+    	for (int count=0; count<splitPersons.size(); count++) {
+    		String person = splitPersons.get(count);
+    		makeStringsCaseInsensitive(splitPersons, count, person);  
+    	}   	
+    	return new HashSet<>(splitPersons);
     }
+    
+    /**
+     * Changes all names input by users to the format added to the address book, ie first letter is capitalized 
+     * and the rest are lower case.
+     * 
+     * @param splitPersons
+     * @param count
+     * @param person
+     */
+	private static void makeStringsCaseInsensitive(ArrayList<String> splitPersons, int count, String person) {
+		String lowerCaseAll = person.toLowerCase();
+		if  (person.length() == 1) {
+			String firstCharUpperCase = lowerCaseAll.toUpperCase();
+			splitPersons.remove(count);
+			splitPersons.add(count, firstCharUpperCase);
+		}
+		else if (person.length() > 1) {
+			String firstCharUpperCase = lowerCaseAll.substring(0, 1).toUpperCase();
+			lowerCaseAll = lowerCaseAll.substring(1);
+			String wantedString = firstCharUpperCase + lowerCaseAll;
+			splitPersons.remove(count);
+			splitPersons.add(count, wantedString);
+		}
+	}
 
     /**
      * Retrieve all persons in the full model whose names contain some of the specified keywords.
@@ -966,7 +995,16 @@ public class AddressBook {
         final int indexOfEmailPrefix = encoded.indexOf(PERSON_DATA_PREFIX_EMAIL);
         // name is leading substring up to first data prefix symbol
         int indexOfFirstPrefix = Math.min(indexOfEmailPrefix, indexOfPhonePrefix);
-        return encoded.substring(0, indexOfFirstPrefix).trim();
+        ArrayList<String> tempArrayForFormatting = splitByWhitespace(encoded.substring(0, indexOfFirstPrefix).trim());
+        for (int i=0; i<tempArrayForFormatting.size(); i++) {
+        	String name = tempArrayForFormatting.get(i);
+        	makeStringsCaseInsensitive(tempArrayForFormatting, i, name);
+        }
+        String newName = tempArrayForFormatting.get(0);
+        for (int j=1; j<tempArrayForFormatting.size(); j++) {
+        	newName = newName + " " + tempArrayForFormatting.get(j);
+        }
+        return newName;
     }
 
     /**
