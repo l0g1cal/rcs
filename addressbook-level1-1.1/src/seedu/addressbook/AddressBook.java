@@ -495,6 +495,27 @@ public class AddressBook {
 		}
 		return wantedString;
 	}
+	/**
+	 * Changes all names input by users to the format added to the address book, ie first letter is capitalized 
+     * and the rest are lower case.
+     * 
+     * This is used for names with more than one word
+	 * @param person
+	 * @return the string of the name that has been formatted.
+	 */
+	private static String makeStringCaseInsensitive(ArrayList<String> personArray) {
+		String wantedString = "";
+		for (int i=0; i<personArray.size(); i++) {
+			String person = personArray.get(i);
+			if (i == personArray.size()-1) {
+				wantedString = wantedString + makeStringCaseInsensitive(person);
+			}
+			else {
+				wantedString = wantedString + makeStringCaseInsensitive(person) + " ";
+			}
+		}
+		return wantedString;
+	}
 
     /**
      * Retrieve all persons in the full model whose names contain some of the specified keywords.
@@ -601,6 +622,9 @@ public class AddressBook {
     
     /**
      * Edits the properties of a contact in the address book
+     * Input could indicate that no change was made, although the 'edit' command was used. In this case,
+     * the message will display that a new person was added, but it actually just deletes the old contact 
+     * and adds the same contact back again.
      * 
      * @param commandArgs
      * @return feedback display message for the operation result
@@ -632,14 +656,20 @@ public class AddressBook {
         }
     	final String matchAnyPersonDataPrefix = PERSON_DATA_PREFIX_NAME + '|' + PERSON_DATA_PREFIX_PHONE + '|' + PERSON_DATA_PREFIX_EMAIL;
         final String[] splitArgs = encoded.trim().split(matchAnyPersonDataPrefix);
-        String name = splitArgs[0].replaceAll("\\s+", "");
-        String changeName = makeStringCaseInsensitive(splitArgs[1].replaceAll("\\s+", ""));
+        String name = makeStringCaseInsensitive(splitByWhitespace(splitArgs[0]));
+        String changeName = makeStringCaseInsensitive(splitByWhitespace(splitArgs[1]));
         String phone = splitArgs[2].replaceAll("\\s+", "");
         String email = splitArgs[3].replaceAll("\\s+", "");
+        
+        if (!areEditInputsValid(name, changeName, phone, email)){
+        	return Optional.empty();
+        }
+//        System.out.println(name);
+//        System.out.println(changeName);
         boolean seen = false;
         for (int i=0; i<ALL_PERSONS.size(); i++) {
         	if (name.equals(ALL_PERSONS.get(i).get(PersonProperty.NAME))){
-        		if (changeName.equals("nill")) {
+        		if (changeName.equals("Nill")) {
         			changeName = name;
         		}
         		if (phone.equals("nill")) {
@@ -658,6 +688,13 @@ public class AddressBook {
         
      // check that the constructed person is valid
         return seen ? Optional.of(decodedPerson) : Optional.empty();
+    }
+    
+    private static boolean areEditInputsValid(String name, String changeName, String phone, String email){
+    	return isPersonNameValid(name)
+    			&& isPersonNameValid(changeName)
+    			&& (isPersonPhoneValid(phone)||phone.equals("nill"))
+    			&& (isPersonEmailValid(email)||email.equals("nill"));
     }
     
     /**
@@ -1100,6 +1137,10 @@ public class AddressBook {
     private static boolean isEditPersonDataExtractableFrom(String personData) {
         final String matchAnyPersonDataPrefix = PERSON_DATA_PREFIX_NAME + '|' + PERSON_DATA_PREFIX_PHONE + '|' + PERSON_DATA_PREFIX_EMAIL;
         final String[] splitArgs = personData.trim().split(matchAnyPersonDataPrefix);
+//        System.out.println(!splitArgs[0].isEmpty());
+//        System.out.println(!splitArgs[1].isEmpty());
+//        System.out.println(!splitArgs[2].isEmpty());
+//        System.out.println(!splitArgs[3].isEmpty());
         return splitArgs.length == 4 // 4 arguments
                 && !splitArgs[0].isEmpty() // non-empty arguments
                 && !splitArgs[1].isEmpty()
